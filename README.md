@@ -2,6 +2,10 @@
 
 Photos of a residual limb → two print-ready STL files for a Stratasys PolyJet prosthetic cover.
 
+**Current Kit:** iPad Pro 3rd Gen (2021) with LiDAR and TrueDepth camera & Structure Sensor Scanner attachment.
+
+**Dream Kit:** insta360 x4 || iPad 16 Pro
+
 **Status:** Active development — Sprint 1-2 (COLMAP + baseline mesh)
 
 ---
