@@ -2,7 +2,7 @@
 
 Best practices for writing tests in this codebase. Born from a red team audit that found 44% of our tests were providing zero real protection.
 
-**Seed expert security and testing agents to write and review tests and the code that passes those tests. Do not skip review.**
+**Proactively spawn expert security and testing agents to write and review tests and the code that passes those tests. Do not skip review. Follow the `red` -> `green` -> `refactor` TDD methodology.**
 
 ## The One-Question Test
 
@@ -48,6 +48,14 @@ expect(['admin', 'dev'].includes(profile.data.role)).toBe(true);
 ```
 
 Why it fails: You told the mock to return `'admin'`, then asked "did you return admin?" The real `requireAdmin()` function is never called.
+
+### Mock Advice
+
+1. Prefer real dependencies; only introduce mocks for dependencies that are slow, external, side-effectful, or non-deterministic (e.g., network, database, file system, clock, random).  
+2. Do not mock modules or classes that belong to the same codebase and contain core business logic; instead, test their real behavior in unit or integration tests.  
+3. When you do mock, define the smallest possible surface area and keep return values and behaviors realistic, avoiding over-specified setups that mirror implementation details.  
+4. Use mocks and spies primarily to assert interactions with external collaborators (calls, arguments, call counts), not to replace or shortcut the core computation you are trying to validate.  
+5. If a single test needs more than two mocks or extensive setup, first try to refactor the production code toward smaller, more cohesive units with clearer boundaries before adding more mock complexity.  
 
 ## How to Test Server Actions
 
