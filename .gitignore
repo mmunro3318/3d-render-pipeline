@@ -65,3 +65,8 @@ desktop.ini
 # Claude Code — local only (machine-specific permissions)
 # =============================================================================
 .claude/settings.local.json
+
+# =============================================================================
+# gstack — large binaries (built locally, not needed in repo)
+# =============================================================================
+.claude/skills/gstack/bin/*.exe
