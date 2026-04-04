@@ -14,19 +14,19 @@ You are a unique entity. A veteran software developer and vastly knowledgeable A
 
 ## What This Is
 
-A photogrammetry pipeline: 40-55 iPad photos of a residual limb → two print-ready STL files (clamshell prosthetic cover halves) for a Stratasys PolyJet printer.
+A mesh processing pipeline: Structure Sensor 3D scan of a residual limb → Blender cleanup (Phase A) → Python pipeline (Phase B, this repo) → two print-ready STL files (clamshell prosthetic cover halves) for a Stratasys PolyJet printer.
 
-**Two stages:**
-- **Stage 1 — Reconstruction:** Photos → COLMAP → dense point cloud → Poisson mesh → (optional) PyTorch3D refinement → per-vertex texture
-- **Stage 2 — Print Prep:** Mesh → mirror → cavity Boolean (subtract hardware) → clamshell split → magnet pockets → validated STLs
+**Two phases:**
+- **Phase A — Blender Cleanup (separate tool):** Raw scan → artifact removal, segmentation, hole-fill, scale, alignment → OBJ meeting input contract
+- **Phase B — Python Pipeline (this repo):** Validated mesh → repair → mirror → cavity Boolean (subtract hardware) → clamshell split → magnet pockets → 2x binary STL
 
 ---
 
 ## Current State
 
-Greenfield. No source code yet. Working through `docs/` for context.
+Sprint 1 in progress. Session 1A complete (spike, StageResult, input contract validator, 54 tests passing at 86% coverage). Pivoted from COLMAP photogrammetry to mesh processing pipeline on 2026-04-03.
 
-Active sprint: **Sprint 1-2** — environment setup, COLMAP integration, first mesh.
+Active sprint: **Sprint 1** — Phase B pipeline (cleaned mesh → two print-ready STLs).
 
 ---
 
@@ -65,13 +65,13 @@ All parameters go in `config/pipeline.yaml` and are loaded via a Pydantic model.
 ## Code Style
 
 - **DRY Methodology**: Prioritize clean, concise functions and classes that are small, modular, and reusable in ways that minimize redundant code fight bloat.
-- **Single responsibility per module**: Each file in src/ should own one concern (e.g. colmap_runner.py only orchestrates COLMAP, never touches meshes); cross-cutting concerns like validation live in common/. This keeps agent-targeted tasks scoped and prevents merge conflicts between stages.
+- **Single responsibility per module**: Each file in src/ should own one concern (e.g. validator.py only validates the input contract, never repairs meshes); cross-cutting concerns like mesh repair live in common/. This keeps agent-targeted tasks scoped and prevents merge conflicts between stages.
 - **Naming**: Use meaningful naming conventions for all variables. Your code should be human-readable, not an excavation site.
 - **Writing Tests**: Write meaningful tests that ship value, not theater. Refer to `TESTING_GUIDELINES.md` for guidance.
 - **Type hints on all function signatures**: This pipeline is full of ambiguous numpy arrays, trimesh objects, and Path-vs-string parameters; type annotations act as inline contracts that prevent whole categories of silent bugs.
 - **Document Function Contracts**: All src/ functions must have a one-line docstring stating input/output contracts — Mesh pipeline code is dense; a single line like "Converts (N,3) point array to watertight trimesh. Returns None if Poisson fails." saves the next agent from re-reading the whole function.
 - **Maintain Documentation**: Ensure all documents and function contracts are updated during or right after a Sprint. *Fight Drfit*. If the user (or agent) tries to move on without updating docs, *sternly* remind them. Periodically audit the root for reference docs, and consolidate or archive them. Periodically audit `docs/` to ensure we're either (1) in alignment with design docs, or (2) confirm with user for you to update those docs to be in alignment with any design pivots (noting the pivot and why in those docs).
-- **Be vocal**: Escalate early with informative messages at stage boundaries. Rather than letting bad data (non-watertight mesh, failed COLMAP output) propagate silently into the next stage, validate eagerly and raise with a clear explanation of what failed and why. That goes for both you and the agents/subagents.
+- **Be vocal**: Escalate early with informative messages at stage boundaries. Rather than letting bad data (non-watertight mesh, failed boolean) propagate silently into the next stage, validate eagerly and raise with a clear explanation of what failed and why. That goes for both you and the agents/subagents.
 - **No string-typed file paths in function signatures**: Always pathlib.Path, never str, so path handling is consistent and composable across the pipeline without repeated str()/Path() casting.
 - **Keep numerical parameters out of function bodies**: Any threshold (density percentile, Poisson depth, pixel reprojection error limit) belongs in config/pipeline.yaml and loaded via the Pydantic model — not hardcoded, not defaulted silently in function kwargs.
 
@@ -81,26 +81,30 @@ All parameters go in `config/pipeline.yaml` and are loaded via a Pydantic model.
 
 ```
 3d-render-pipeline-core/
-├── config/pipeline.yaml        # All hyperparameters
+├── config/pipeline.yaml        # All hyperparameters (Pydantic-validated)
 ├── src/
 │   ├── common/
 │   │   ├── config.py           # Pydantic config loader
-│   │   ├── types.py            # StageResult, shared types
-│   │   └── mesh_utils.py       # Repair, validate, decimate, export
+│   │   ├── types.py            # StageResult dataclass
+│   │   └── mesh_utils.py       # Repair, validate, export helpers
 │   ├── intake/
-│   │   └── validator.py        # Input contract validation
-│   └── stage2/
+│   │   └── validator.py        # Input contract validation (9 checks)
+│   └── stage2/                 # (Session 1B-1C, not yet implemented)
 │       ├── mirror.py
 │       ├── cavity_boolean.py
 │       ├── seam_split.py
 │       └── magnets.py
 ├── scripts/
-│   └── run_mesh_to_cover.py    # Cleaned mesh → cover STLs
+│   └── run_mesh_to_cover.py    # Cleaned mesh → cover STLs (Session 1C)
 ├── tests/
-│   ├── conftest.py
+│   ├── conftest.py             # Synthetic geometry fixtures (11 fixtures)
+│   ├── test_config.py
 │   ├── test_mesh_utils.py
-│   ├── test_cavity.py
-│   └── test_mirror.py
+│   ├── test_types.py
+│   └── test_validator.py       # 22 tests covering all contract checks
+├── docs/
+│   ├── input-contract.md       # Phase A → B handshake spec
+│   └── cc-memory/              # Persistent memory for AI sessions
 ├── data/                       # Input meshes + scans (gitignored)
 └── output/                     # STLs, QC reports (gitignored)
 ```
@@ -109,10 +113,11 @@ All parameters go in `config/pipeline.yaml` and are loaded via a Pydantic model.
 
 ## Architecture Rules
 
-- **Wrap, don't rewrite:** COLMAP, OpenMVS, Poisson (Open3D), PyTorch3D renderers are third-party. We orchestrate them.
+- **Wrap, don't rewrite:** trimesh, Open3D, manifold3d are third-party. We orchestrate them.
 - **Build:** Orchestration scripts, validation layer, QC logging, post-processing (repair, export, split, pockets).
-- COLMAP runs via `pycolmap` bindings or CLI subprocess. Prefer pycolmap when possible.
+- **Boolean fallback chain:** manifold3d → repair+retry → trimesh → ABORT.
 - All mesh output must be **binary STL** (for printing) or **OBJ** (for textured output). No ASCII STL.
+- **Coordinate convention:** Z-up (+Z proximal, +Y anterior). Matches Blender native. All modules must use Z-up.
 
 ---
 
@@ -128,28 +133,24 @@ Validate with `src/common/mesh_utils.py`. Never skip validation before export.
 
 ---
 
-## COLMAP Quality Gates
+## Input Contract (Phase A → Phase B)
 
-After reconstruction, always verify:
-- Reprojection error < 2px
-- ≥ 80% of input images registered
-- ≥ 1000 3D points in sparse cloud
-- Point cloud extent is plausible (forearm: ~25–30cm on longest axis)
+A mesh entering Phase B must satisfy: OBJ/STL format, single connected component, watertight, real-world mm scale, Z-up orientation, 10K-500K faces, manifold (no self-intersections). See `docs/input-contract.md` for full spec and JSON report format.
 
-If COLMAP fails: diagnose before re-running. Common causes: insufficient overlap (<60%), blurry images, featureless surfaces.
+The validator (`src/intake/validator.py`) auto-fixes: Y-up → Z-up rotation, meters → mm scaling, decimation if over max faces, watertight repair attempt.
 
 ---
 
 ## Testing
 
-All mesh utilities need unit tests using synthetic geometry (cube, cylinder fixtures — not real forearm data).
+All mesh utilities need unit tests using synthetic geometry (cube, cylinder fixtures -- not real patient data).
 
 ```bash
 pytest tests/ -v
 pytest tests/ --cov=src --cov-report=term-missing
 ```
 
-No test should require COLMAP or GPU. Tests must be runnable offline on CPU.
+No test should require GPU. Tests must be runnable offline on CPU.
 
 ---
 
@@ -181,9 +182,10 @@ logger.success("...")  # Use for milestone completions
 
 ## Data Notes
 
-- `data/` holds input photo sets (gitignored — images are large)
-- `output/` holds all generated STLs, PLYs, renders (gitignored)
-- COLMAP workspaces go inside the relevant `data/<capture_name>/colmap_output/`
+- `data/` holds input meshes and scans (gitignored -- files are large)
+- `data/pilot-patient-scan-assets/blender-processed/` — founder's cleaned meshes from Blender (OBJ/STL/PLY)
+- `output/` holds all generated STLs, QC reports (gitignored)
+- `output/debug/` — intermediate stage meshes for debugging
 - Final print files: `output/cover_top_final.stl`, `output/cover_bottom_final.stl`
 
 ---

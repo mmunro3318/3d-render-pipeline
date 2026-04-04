@@ -30,8 +30,7 @@ python -m venv .venv
 # Linux/Mac:
 source .venv/bin/activate
 
-pip install trimesh numpy open3d pydantic pyyaml pillow tqdm loguru manifold3d
-pip install pytest pytest-cov  # dev
+pip install -r requirements.txt
 ```
 
 ---
@@ -71,8 +70,10 @@ Required once after cloning to build the browser automation binaries used by Cla
 | Doc | Contents |
 |-----|----------|
 | `CLAUDE.md` | AI developer guide — architecture, constraints, rules |
-| `ROADMAP.md` | Sprint plan, key decisions, input contract spec |
+| `ROADMAP.md` | Sprint plan, key decisions, two-phase architecture |
 | `TESTING_GUIDELINES.md` | Test philosophy and pytest patterns |
+| `TODOS.md` | Deferred work items from reviews |
+| `docs/input-contract.md` | Phase A → Phase B mesh handshake spec |
 | `docs/THE_WHY.md` | Product vision and motivation |
 
 ---

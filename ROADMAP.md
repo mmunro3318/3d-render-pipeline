@@ -46,10 +46,10 @@ A mesh entering Phase B must satisfy:
 
 ## Sprint Plan
 
-### Pre-Work: Housekeeping (~30 min)
-- [ ] Archive COLMAP-era docs to `docs/archive/colmap-era/`
-- [ ] Delete dead COLMAP code (~1,474 lines)
-- [ ] Update config schema for mesh processing
+### Pre-Work: Housekeeping (~30 min) — DONE (commit 9b1e1d2)
+- [x] Archive COLMAP-era docs to `docs/archive/colmap-era/`
+- [x] Delete dead COLMAP code (~1,474 lines)
+- [x] Update config schema for mesh processing
 - [x] Write ROADMAP.md
 
 ### Sprint 1: Phase B Pipeline — Cleaned Mesh → STLs (2-3 sessions)
