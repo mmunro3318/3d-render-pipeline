@@ -16,9 +16,9 @@ My dream scenario is to take photos from the remote clinic capture (we physicall
 
 ---
 
-## Polycam-First Strategy
+## Polycam Strategy
 
-We should do the Polycam approach first. I'll work on that to get an initial test data set. Design to handle Polycam output files. When I was working on the prior iteration, we considered Polycam as the primary capture vehicle, but I never tested it because I didn't have the device/kit back (was with first patient). I then pivoted because I had a batch of patient data/capture without Polycam, and was hoping to produce something good from that.  
+I'll explore the Polycam approach. I'll work on that to get an initial test data set. When I was working on the prior iteration, we considered Polycam as the primary capture vehicle, but I never tested it because I didn't have the device/kit back (was with first patient). I then pivoted because I had a batch of patient data/capture without Polycam, and was hoping to produce something good from that.  
 
 ## Beyond Polycam and COLMAP
 

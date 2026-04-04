@@ -1,117 +1,84 @@
-# Testing Guidelines
+# Testing Guidelines — HyperReal Pipeline
 
-Best practices for writing tests in this codebase. Born from a red team audit that found 44% of our tests were providing zero real protection.
+Meaningful tests that ship value, not theater. Every test must answer YES to: "If I deleted the function this covers, would the test fail?"
 
-**Proactively spawn expert security and testing agents to write and review tests and the code that passes those tests. Do not skip review. Follow the `red` -> `green` -> `refactor` TDD methodology.**
+## Framework
 
-## The One-Question Test
+- **pytest** with `conftest.py` for shared fixtures
+- No GPU, no COLMAP, no network — all tests run offline on CPU
+- No real patient data in tests — use synthetic geometry only
 
-Before committing any test, ask: **"If I deleted the function this test covers, would the test fail?"**
+## Running Tests
 
-- **YES** → the test has value. Ship it.
-- **NO** → the test is theater. It's testing a mock or a copy, not your code. Fix it or delete it.
-
-## Three Patterns (Good, Bad, Ugly)
-
-### Good: Import the real function
-
-```js
-import { sanitizeCell } from '@/lib/utils/csv';
-
-it('prefixes = with single quote', () => {
-  expect(sanitizeCell('=SUM(A1)')).toBe("'=SUM(A1)");
-});
+```bash
+pytest tests/ -v                                    # all tests
+pytest tests/ --cov=src --cov-report=term-missing   # with coverage
+pytest tests/test_mesh_utils.py -k "test_repair"    # single test
 ```
 
-Why it works: `sanitizeCell` is the real function. Delete it from csv.js → test fails with import error. Change its logic → test catches the regression.
+**Coverage target:** >= 80% on `src/`.
 
-### Bad: Copy the function into the test
+## Naming Conventions
 
-```js
-// DON'T DO THIS
-function sanitizeCell(value) { /* copied from csv.js */ }
+| Element | Convention | Example |
+|---------|-----------|---------|
+| File | `test_<module>.py` | `test_mesh_utils.py` |
+| Class | `TestClassName` | `TestMeshRepair` |
+| Function | `test_descriptive_name` | `test_repair_closes_single_hole` |
 
-it('prefixes = with single quote', () => {
-  expect(sanitizeCell('=SUM(A1)')).toBe("'=SUM(A1)");
-});
+## Synthetic Geometry Fixtures
+
+Define in `tests/conftest.py`. Never load real scan data.
+
+```python
+import trimesh
+import pytest
+
+@pytest.fixture
+def box_mesh() -> trimesh.Trimesh:
+    """Watertight 10x10x10mm box — baseline for boolean and split tests."""
+    return trimesh.creation.box(extents=(10, 10, 10))
+
+@pytest.fixture
+def cylinder_mesh() -> trimesh.Trimesh:
+    """Watertight cylinder, radius=5mm height=20mm — limb-like proxy."""
+    return trimesh.creation.cylinder(radius=5, height=20)
+
+@pytest.fixture
+def sphere_mesh() -> trimesh.Trimesh:
+    """Watertight icosphere, radius=10mm."""
+    return trimesh.creation.icosphere(radius=10)
+
+@pytest.fixture
+def open_mesh(box_mesh) -> trimesh.Trimesh:
+    """Box with one face removed — non-watertight test case."""
+    faces = box_mesh.faces[1:]  # drop first face
+    return trimesh.Trimesh(vertices=box_mesh.vertices, faces=faces)
 ```
 
-Why it fails: This tests the copy, not the real code. If someone changes csv.js, this test still passes against the stale copy.
+## What to Test
 
-### Ugly: Test the mock, not the code
+| Module | Test focus |
+|--------|-----------|
+| `common/mesh_utils.py` | Repair closes holes, decimation preserves watertight, export produces binary STL |
+| `common/config.py` | Valid YAML loads, missing fields raise, defaults applied |
+| `intake/validator.py` | Watertight check, scale bounds, face count limits, orientation |
+| `stage2/mirror.py` | Mirrored mesh is reflected, stays watertight |
+| `stage2/cavity_boolean.py` | Boolean subtraction produces hollow shell, result is watertight |
+| `stage2/seam_split.py` | Planar cut yields exactly 2 pieces, both watertight |
+| `stage2/magnets.py` | Pocket subtraction at configured coordinates, result is watertight |
 
-```js
-// DON'T DO THIS
-const mock = buildMockSupabase({ role: 'admin' });
-const profile = await mock.from('profiles').select('role').eq('id', '123').single();
-expect(['admin', 'dev'].includes(profile.data.role)).toBe(true);
-```
+## Mock Rules
 
-Why it fails: You told the mock to return `'admin'`, then asked "did you return admin?" The real `requireAdmin()` function is never called.
-
-### Mock Advice
-
-1. Prefer real dependencies; only introduce mocks for dependencies that are slow, external, side-effectful, or non-deterministic (e.g., network, database, file system, clock, random).  
-2. Do not mock modules or classes that belong to the same codebase and contain core business logic; instead, test their real behavior in unit or integration tests.  
-3. When you do mock, define the smallest possible surface area and keep return values and behaviors realistic, avoiding over-specified setups that mirror implementation details.  
-4. Use mocks and spies primarily to assert interactions with external collaborators (calls, arguments, call counts), not to replace or shortcut the core computation you are trying to validate.  
-5. If a single test needs more than two mocks or extensive setup, first try to refactor the production code toward smaller, more cohesive units with clearer boundaries before adding more mock complexity.  
-
-## How to Test Server Actions
-
-Server Actions use `'use server'` and can't be imported normally. Use dynamic import:
-
-```js
-vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-
-it('rejects unauthenticated user', async () => {
-  const mock = buildMockSupabase({ userId: null });
-  createClient.mockResolvedValue(mock);
-
-  const { createPayer } = await import('@/lib/actions/mutations.js');
-  const result = await createPayer({ name: 'Test' });
-  expect(result).toEqual({ success: false, error: expect.stringContaining('Not authenticated') });
-});
-```
-
-This calls the **real** `createPayer`, which internally calls `requireAdmin()`, which hits our mocked Supabase. We mock the database layer, not the business logic.
-
-## When to Extract vs. Test Through the API
-
-| Situation | Approach |
-|-----------|----------|
-| Pure helper function (no DB, no framework) | Extract to `lib/utils/`, import directly |
-| Logic inside a Server Action | Test through the exported action via dynamic import |
-| React component logic | Extract pure logic to `lib/utils/`, test the util directly |
-| Constants shared between source and test | Extract to `lib/constants/`, import in both |
-
-Shared utility modules in this project:
-- `lib/utils/validation.js` — validateRequired, validatePositiveAmount, mapPostgrestError, validateAllocations
-- `lib/utils/report-helpers.js` — groupAgingByPayer, computeCollectionRate, computeDSO, generateInvoiceNumber
-- `lib/utils/allocations.js` — buildAllocations
-- `lib/utils/csv.js` — sanitizeCell, formatCSV
+1. Prefer real dependencies. Only mock for I/O, network, or non-deterministic behavior.
+2. Never mock business logic from `src/` — test it directly.
+3. If a test needs more than two mocks, refactor the production code first.
+4. File system mocks: use `tmp_path` fixture, not mocking `pathlib`.
 
 ## Edge Cases Worth Testing
 
-Financial apps need extra paranoia. Always test:
-
-- **Float precision**: `0.1 + 0.2 !== 0.3` in JavaScript. Test amounts like `$0.10 + $0.20`.
-- **Boundary values**: What happens at exactly the threshold? (e.g., allocation total equals amount received)
-- **Null/undefined inputs**: What does the function do with missing data?
-- **Substring collisions**: If you match on `detail.includes('name')`, does `'invoice_name'` match too?
-- **Overflow**: What happens at sequence 999 → 1000 if you're zero-padding to 3 digits?
-
-## Mutation Testing
-
-Run `npm run test:mutate` to check if your tests actually catch bugs. StrykerJS changes your code (flips operators, deletes lines) and sees if tests still pass. If they do, the test isn't catching what you think.
-
-Current baseline: **86.54%** on `lib/utils/`. Target: stay above 80%.
-
-## Test Commands
-
-```bash
-npm test              # Run all 184 tests (~3s)
-npm run test:watch    # Watch mode for development
-npm run test:mutate   # Mutation testing (~3 min)
-```
+- Non-watertight input to a function that requires watertight
+- Zero-volume or degenerate meshes (single triangle, empty mesh)
+- Meshes at boundary of triangle count limits
+- Boolean operations that produce multiple components
+- Config with missing required fields or out-of-range values

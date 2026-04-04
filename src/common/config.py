@@ -7,7 +7,7 @@ from typing import Literal
 
 import yaml
 from loguru import logger
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -45,58 +45,37 @@ class LimbProfile(BaseModel):
         return value
 
 
-class CaptureConfig(BaseModel):
-    """Photo capture quality-gate parameters."""
+class IntakeConfig(BaseModel):
+    """Input mesh loading and contract validation parameters."""
 
-    min_images: int
-    max_images: int
-    min_laplacian_variance: float
-    min_resolution: tuple[int, int]
-    min_features_per_image: int
-    min_pairwise_matches: int
-
-    @field_validator("min_images", "max_images", "min_features_per_image", "min_pairwise_matches")
-    @classmethod
-    def _must_be_positive(cls, value: int) -> int:
-        """Validates that integer fields are strictly positive."""
-        if value <= 0:
-            msg = f"Value must be positive, got {value}"
-            raise ValueError(msg)
-        return value
-
-    @field_validator("min_laplacian_variance")
-    @classmethod
-    def _variance_must_be_positive(cls, value: float) -> float:
-        """Validates that Laplacian variance threshold is positive."""
-        if value <= 0:
-            msg = f"Laplacian variance must be positive, got {value}"
-            raise ValueError(msg)
-        return value
+    supported_formats: list[str] = ["obj", "stl"]
+    max_faces: int = 500_000
+    min_faces: int = 10_000
+    warn_faces_high: int = 300_000
+    warn_faces_low: int = 100_000
 
 
-class ColmapConfig(BaseModel):
-    """COLMAP reconstruction parameters and quality gates."""
+class RepairConfig(BaseModel):
+    """Mesh repair parameters."""
 
-    camera_model: str
-    max_reprojection_error: float
-    min_registered_ratio: float
-    min_3d_points: int
-
-    @field_validator("min_3d_points")
-    @classmethod
-    def _points_must_be_positive(cls, value: int) -> int:
-        """Validates that minimum 3D points is positive."""
-        if value <= 0:
-            msg = f"min_3d_points must be positive, got {value}"
-            raise ValueError(msg)
-        return value
+    smooth_iterations: int = 3
+    smooth_lambda: float = 0.5
+    max_hole_edges: int = 100
 
 
-class PoissonConfig(BaseModel):
-    """Poisson surface reconstruction parameters."""
+class BooleanConfig(BaseModel):
+    """Boolean subtraction parameters."""
 
-    depth: int
-    min_density_percentile: float
+    engine_preference: list[str] = ["manifold3d", "trimesh"]
+    retry_after_repair: bool = True
+
+
+class ExportConfig(BaseModel):
+    """Export and validation parameters."""
+
+    output_format: Literal["stl", "obj"] = "stl"
+    debug_exports: bool = True
+    debug_dir: str = "output/debug"
 
 
 # ---------------------------------------------------------------------------
@@ -106,12 +85,14 @@ class PoissonConfig(BaseModel):
 class PipelineConfig(BaseModel):
     """Top-level pipeline configuration aggregating all sub-configs."""
 
-    capture: CaptureConfig
-    colmap: ColmapConfig
-    poisson: PoissonConfig
+    model_config = ConfigDict(extra="forbid")
+
+    intake: IntakeConfig
+    repair: RepairConfig
+    boolean: BooleanConfig
+    export: ExportConfig
     limb_profiles: dict[str, LimbProfile]
     active_profile: str
-    colmap_binary: Path
 
     @model_validator(mode="after")
     def _active_profile_must_exist(self) -> "PipelineConfig":

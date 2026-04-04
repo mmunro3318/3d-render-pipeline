@@ -1,6 +1,5 @@
 # HyperReal 3D Render Pipeline — Dependencies
 # Requires Python 3.12 (Open3D has no wheels for 3.13+)
-# Install with: pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
 
 # === Core mesh operations ===
 trimesh>=4.0.0
@@ -8,19 +7,8 @@ open3d>=0.18.0
 numpy>=1.26.0
 scipy>=1.11.0
 
-# === Photogrammetry ===
-opencv-python>=4.8.0
-# pycolmap>=0.9.1  # Linux-only GPU; Windows uses COLMAP CLI subprocess
-
-# === ML / Refinement (Sprint 6+) ===
-# torch==2.7.0+cu128  # Install separately: pip install torch==2.7.0 torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cu128
-# pytorch3d>=0.7.6    # Sprint 6
-
-# === Segmentation (Sprint 6+) ===
-# ultralytics>=8.2.70  # SAM2, Sprint 6
-
-# === Mesh booleans (Sprint 3+) ===
-# manifold3d  # Sprint 3-5
+# === Mesh booleans ===
+manifold3d>=2.3.0
 
 # === Config ===
 pydantic>=2.0.0
@@ -29,10 +17,9 @@ pyyaml>=6.0
 # === Logging ===
 loguru>=0.7.0
 
+# === Image handling ===
+Pillow>=10.0.0
+
 # === Testing ===
 pytest>=8.0.0
 pytest-cov>=5.0.0
-
-# === Image handling ===
-Pillow>=10.0.0
-pillow-heif>=0.18.0  # HEIC support (iPad default format)
