@@ -1,0 +1,51 @@
+# HyperReal 3D Render Pipeline — Master Configuration
+# All hyperparameters live here. No magic numbers in source code.
+
+# --- Capture validation ---
+capture:
+  min_images: 40
+  max_images: 55
+  min_laplacian_variance: 100.0        # Blur detection threshold
+  min_resolution: [3024, 4032]          # [height, width] minimum
+  min_features_per_image: 500
+  min_pairwise_matches: 50
+
+# --- COLMAP reconstruction ---
+colmap:
+  camera_model: "PINHOLE"
+  max_reprojection_error: 2.0           # pixels
+  min_registered_ratio: 0.8             # fraction of input images
+  min_3d_points: 1000
+
+# --- Poisson surface reconstruction ---
+poisson:
+  depth: 9
+  min_density_percentile: 0.01          # cull low-density vertices
+
+# --- COLMAP binary path (CLI fallback) ---
+colmap_binary: "colmap"
+
+# --- Active limb profile ---
+active_profile: "forearm"
+
+# --- Limb-specific profiles ---
+limb_profiles:
+  forearm:
+    expected_length_mm: [200, 350]
+    expected_diameter_mm: [60, 120]
+    split_plane_axis: "sagittal"
+    wall_thickness_target_mm: 2.0
+    wall_thickness_min_mm: 1.5
+    magnet_pocket_diameter_mm: 6.0
+    magnet_pocket_depth_mm: 3.0
+    cavity_clearance_mm: 1.0
+
+  above_knee:
+    expected_length_mm: [300, 500]
+    expected_diameter_mm: [120, 250]
+    split_plane_axis: "coronal"
+    wall_thickness_target_mm: 2.5
+    wall_thickness_min_mm: 1.5
+    magnet_pocket_diameter_mm: 8.0
+    magnet_pocket_depth_mm: 4.0
+    cavity_clearance_mm: 1.5
